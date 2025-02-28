@@ -41,3 +41,15 @@ for i, text in enumerate(user_data):
     user_models.append(updated_params)
 
 print("Локальное обучение завершено!")
+
+# Объединение параметров моделей
+averaged_params = {}
+for name in user_models[0].keys():
+    # Среднее значение параметров от всех пользователей
+    averaged_params[name] = torch.mean(
+        torch.stack([user_params[name] for user_params in user_models]), dim=0
+    )
+
+# Загрузка объединённых параметров в исходную модель
+model.load_state_dict(averaged_params)
+print("Знания объединены в общей модели!")
