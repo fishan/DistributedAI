@@ -14,56 +14,86 @@ def load_model():
 
 tokenizer, model = load_model()
 
-# Сохранение и загрузка данных
-DATA_FILE = "users_data.json"
+# Каталог для данных пользователей
+DATA_DIR = "user_data"
+if not os.path.exists(DATA_DIR):
+    os.makedirs(DATA_DIR)
 
-def save_data():
-    with open(DATA_FILE, "w") as f:
-        json.dump(st.session_state['users'], f, ensure_ascii=False)
+# Сохранение и загрузка данных пользователя
+def save_user_data(username, data):
+    with open(os.path.join(DATA_DIR, f"{username}.json"), "w") as f:
+        json.dump(data, f, ensure_ascii=False)
 
-def load_data():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
+def load_user_data(username):
+    file_path = os.path.join(DATA_DIR, f"{username}.json")
+    if os.path.exists(file_path):
+        with open(file_path, "r") as f:
             return json.load(f)
-    return {}
+    return None
 
 # Инициализация состояния
 if 'users' not in st.session_state:
-    st.session_state['users'] = load_data()
+    st.session_state['users'] = {}
 if 'current_user' not in st.session_state:
     st.session_state['current_user'] = None
 
-# Приветствие и описание
-st.title("Твой ИИ-питомец ждёт тебя!")
-st.write("""
-Это твой уникальный ИИ-питомец! Он учится у тебя, отражает твои интересы и растёт вместе с тобой. 
-- Расскажи о своих интересах (например, 'кулинария, шахматы'), и питомец станет в этом экспертом.
-- Общайся с ним, учи его и выполняй задания. Он запомнит только последние 20 сообщений, чтобы не путаться!
-- Чем дольше вы вместе, тем ценнее и умнее он становится.
-""")
+# Регистрация и логин
+st.sidebar.title("Вход / Регистрация")
+action = st.sidebar.radio("Выбери действие:", ["Войти", "Зарегистрироваться"])
+username = st.sidebar.text_input("Имя пользователя:")
+password = st.sidebar.text_input("Пароль:", type="password")
 
-# Регистрация пользователя
-st.sidebar.title("Регистрация")
-name = st.sidebar.text_input("Введи своё имя:")
-interests = st.sidebar.text_input("Твои интересы, навыки или опыт (например, 'кулинария, шахматы')")
-if st.sidebar.button("Зарегистрироваться") and name and interests and name not in st.session_state['users']:
-    st.session_state['users'][name] = {
-        "interests": interests,
-        "points": 0,
-        "experience": [],
-        "dialogue": [],  # Последние 20 сообщений
-        "personality": random.choice(["Любопытный", "Оптимист", "Шутник"])
-    }
-    st.session_state['current_user'] = name
-    save_data()
-    st.sidebar.success(f"Привет, {name}! Твой питомец готов учиться '{interests}'")
+if action == "Зарегистрироваться" and st.sidebar.button("Зарегистрироваться"):
+    if username and password and username not in st.session_state['users']:
+        pet_name = st.sidebar.text_input("Имя твоего питомца:")
+        interests = st.sidebar.text_input("Твои интересы (например, 'кулинария, шахматы')")
+        if pet_name and interests:
+            st.session_state['users'][username] = password
+            user_data = {
+                "pet_name": pet_name,
+                "interests": interests,
+                "points": 0,
+                "experience": [],
+                "dialogue": [],
+                "personality": random.choice(["Любопытный", "Оптимист", "Шутник"])
+            }
+            save_user_data(username, user_data)
+            st.session_state['current_user'] = username
+            st.sidebar.success(f"Питомец {pet_name} для {username} создан!")
+        else:
+            st.sidebar.error("Укажи имя питомца и интересы!")
+    elif username in st.session_state['users']:
+        st.sidebar.error("Пользователь уже существует!")
+    else:
+        st.sidebar.error("Введи имя и пароль!")
+
+if action == "Войти" and st.sidebar.button("Войти"):
+    if username in st.session_state['users'] and st.session_state['users'][username] == password:
+        st.session_state['current_user'] = username
+        st.sidebar.success(f"Добро пожаловать, {username}!")
+    else:
+        st.sidebar.error("Неверное имя или пароль!")
+
+# Главная страница
+st.title("Твой ИИ-питомец — часть децентрализованного разума!")
+st.write("""
+Это твой уникальный ИИ-питомец. Он живёт с тобой, учится у тебя и становится твоим отражением. 
+- Дай ему имя и общайся с ним — он будет расти и помогать тебе.
+- Он может использовать опыт других питомцев для быстрых ответов, а ты получишь бонусы, если твой питомец помогает другим!
+- Даже без связи он всегда с тобой.
+""")
 
 # Проверка текущего пользователя
 if not st.session_state['current_user']:
-    st.write("Зарегистрируйся в боковой панели!")
+    st.write("Войди или зарегистрируйся в боковой панели!")
 else:
     user_name = st.session_state['current_user']
-    user_data = st.session_state['users'][user_name]
+    user_data = load_user_data(user_name)
+    if not user_data:
+        st.error("Ошибка загрузки данных питомца!")
+        st.stop()
+    
+    pet_name = user_data["pet_name"]
     interests = user_data["interests"]
     points = user_data["points"]
     experience = user_data["experience"]
@@ -71,37 +101,14 @@ else:
     personality = user_data["personality"]
 
     # Интерфейс
-    st.header(f"Твой ИИ-питомец: {user_name}")
+    st.header(f"Твой питомец: {pet_name} (Хозяин: {user_name})")
     st.write(f"Интересы: {interests} | Очки: {points} | Уровень: {points // 50} | Характер: {personality}")
 
-    # Поле для ввода текста и темы
-    user_input = st.text_input("Скажи что-нибудь питомцу:")
-    topic = st.text_input("О какой теме этот текст? (например, 'кулинария')")
-
-    # Кнопки
-    train_button = st.button("Обучить питомца")
-    predict_button = st.button("Спросить питомца")
-    generate_button = st.button("Сгенерировать опыт")
-
-    # Проверка соответствия теме
-    def check_topic_relevance(text, topic, interests):
-        interest_list = [i.strip().lower() for i in interests.split(",")]
-        if not topic or topic.lower() not in interest_list:
-            return 0.5
-        related_words = {
-            "кулинария": ["готов", "еда", "рецепт", "жарить", "печь", "суп", "вкусно"],
-            "шахматы": ["ход", "фигура", "партия", "шах", "мат", "доска"],
-            "коты": ["кот", "кошк", "мяу", "лап", "шерсть"]
-        }.get(topic.lower(), [])
-        if any(word in text.lower() for word in related_words):
-            return 1.5
-        absurd_combinations = ["готовлю носки", "ем шахматы"]
-        if any(absurd in text.lower() for absurd in absurd_combinations):
-            return 0
-        return 1
+    # Диалог
+    user_input = st.text_input(f"Поговори с {pet_name}:")
 
     # Функция обучения
-    def train_model(model, text, label=None, epochs=1, topic=None, interests=interests):
+    def train_model(model, text, label=None, epochs=1):
         inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=512)
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
         model.train()
@@ -111,23 +118,31 @@ else:
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        bonus = check_topic_relevance(text, topic, interests)
-        return model.state_dict(), bonus
+        return model.state_dict()
 
-    # Функция предсказания с учётом личности
-    def get_prediction(model, text, personality):
+    # Функция предсказания с учётом личности и настроения
+    def get_prediction(model, text, personality, pet_name):
         inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=512)
         with torch.no_grad():
             outputs = model(**inputs)
         probs = torch.softmax(outputs.logits, dim=-1)
         prediction = torch.argmax(probs).item()
         base_response = "Позитивный" if prediction == 1 else "Негативный"
-        if personality == "Любопытный":
-            return f"{base_response}. А почему ты так думаешь?"
-        elif personality == "Оптимист":
-            return f"{base_response}. Всё будет хорошо!"
-        else:  # Шутник
-            return f"{base_response}. Не грусти, я не кусаюсь... пока!"
+        # Если текст негативный, добавляем поддержку
+        if prediction == 0:
+            if personality == "Любопытный":
+                return f"{pet_name}: Кажется, ты грустишь. Что случилось? Я с тобой!"
+            elif personality == "Оптимист":
+                return f"{pet_name}: Не грусти, всё наладится! Чем могу помочь?"
+            else:  # Шутник
+                return f"{pet_name}: Ой, это негатив? Давай я пошучу: почему грусть убежала? Потому что я пришёл!"
+        else:
+            if personality == "Любопытный":
+                return f"{pet_name}: {base_response}. Почему ты так думаешь?"
+            elif personality == "Оптимист":
+                return f"{pet_name}: {base_response}. Отлично, рад за тебя!"
+            else:  # Шутник
+                return f"{pet_name}: {base_response}. Я всегда знал, что ты весёлый!"
 
     # Обновление диалога
     def update_dialogue(user_msg, pet_msg):
@@ -135,72 +150,64 @@ else:
         if len(dialogue) > 20:
             dialogue.pop(0)
         user_data["dialogue"] = dialogue
-        save_data()
+        save_user_data(user_name, user_data)
 
-    # Логика обучения
-    if train_button and user_input:
-        st.write(f"Питомец: Это '{user_input}' — позитивное или негативное?")
-        feedback = st.radio("Твой ответ:", ["Позитивное", "Негативное"], key="feedback")
-        if feedback:
-            label = 1 if feedback == "Позитивное" else 0
-            updated_params, bonus = train_model(model, user_input, label, topic=topic)
-            model.load_state_dict(updated_params)
-            experience.append((user_input, feedback, topic))
-            points += int(10 * bonus)
-            pet_response = f"Я выучил! Это {feedback}."
+    # Симуляция децентрализации
+    def simulate_decentralized_help(user_name, pet_name):
+        if random.random() < 0.3 and len(st.session_state['users']) > 1:  # 30% шанс использовать "другого"
+            other_users = [u for u in st.session_state['users'] if u != user_name]
+            helper = random.choice(other_users)
+            helper_data = load_user_data(helper)
+            helper_data["points"] += 5
+            save_user_data(helper, helper_data)
+            return f"{pet_name}: Я спросил у питомца {helper}. Он помог! ({helper} получил +5 очков)"
+        return f"{pet_name}: Я ответил сам!"
+
+    # Обработка ввода
+    if user_input:
+        # Проверка на урок
+        if "— это" in user_input:
+            term, meaning = user_input.split("— это", 1)
+            term, meaning = term.strip(), meaning.strip()
+            experience.append((term, meaning, "Урок"))
+            points += 10
+            pet_response = f"{pet_name}: Запомнил: '{term}' — это '{meaning}'."
             update_dialogue(user_input, pet_response)
             user_data["points"] = points
             user_data["experience"] = experience
-            st.session_state['users'][user_name] = user_data
-            save_data()
-            st.success(f"Питомец: {pet_response} +{int(10 * bonus)} очков (всего: {points})")
+            save_user_data(user_name, user_data)
+            st.write(f"Питомец: {pet_response} +10 очков (всего: {points})")
+        else:
+            # Диалог с обучением
+            prediction, confidence = get_prediction(model, user_input, personality, pet_name)
+            decentralized_msg = simulate_decentralized_help(user_name, pet_name)
+            st.write(f"Питомец: {prediction}")
+            st.write(decentralized_msg)
+            feedback = st.radio(f"{pet_name}: Я угадал настроение?", ["Да", "Нет"], key="feedback")
+            if feedback:
+                label = 1 if "Позитивный" in prediction and feedback == "Да" else 0
+                updated_params = train_model(model, user_input, label)
+                model.load_state_dict(updated_params)
+                pet_response = f"{pet_name}: Спасибо, я учусь!" if feedback == "Да" else f"{pet_name}: Поправил себя, спасибо!"
+                points += 5 if feedback == "Да" else 10
+                update_dialogue(user_input, pet_response)
+                user_data["points"] = points
+                user_data["experience"] = experience + [(user_input, prediction.split('.')[0], "Диалог")]
+                save_user_data(user_name, user_data)
+                st.success(f"Питомец: {pet_response} +{5 if feedback == 'Да' else 10} очков (всего: {points})")
 
-    # Логика предсказания
-    if predict_button and user_input:
-        prediction, confidence = get_prediction(model, user_input, personality)
-        st.write(f"Питомец: Я думаю, это '{prediction}' (уверенность: {confidence:.2f})")
-        update_dialogue(user_input, prediction)
-        correct = st.radio("Я угадал?", ["Да", "Нет"], key="correct")
-        if correct == "Да":
-            points += 15
-            user_data["points"] = points
-            st.session_state['users'][user_name] = user_data
-            save_data()
-            st.write(f"Питомец: Ура! +15 очков (всего: {points})")
-        elif correct == "Нет":
-            points += 5
-            user_data["points"] = points
-            st.session_state['users'][user_name] = user_data
-            save_data()
-            st.write(f"Питомец: Поправь меня! +5 очков (всего: {points})")
+    # Просмотр диалога
+    st.subheader(f"Последние 20 сообщений с {pet_name}:")
+    for user_msg, pet_msg in dialogue:
+        st.write(f"Ты: {user_msg} | {pet_name}: {pet_msg}")
 
-    # Логика генерации опыта
-    if generate_button:
-        fake_experiences = [("Я люблю солнце!", 1, "погода"), ("Дождь меня злит.", 0, "погода"), ("ИИ — это весело!", 1, "технологии")]
-        text, label, fake_topic = random.choice(fake_experiences)
-        updated_params, bonus = train_model(model, text, label, topic=fake_topic)
-        model.load_state_dict(updated_params)
-        experience.append((text, "Позитивное" if label == 1 else "Негативное", fake_topic))
-        points += int(3 * bonus)
-        pet_response = f"Кто-то сказал '{text}'. Я выучил!"
-        update_dialogue("Генерация опыта", pet_response)
-        user_data["points"] = points
-        user_data["experience"] = experience
-        st.session_state['users'][user_name] = user_data
-        save_data()
-        st.success(f"Питомец: {pet_response} +{int(3 * bonus)} очка (всего: {points})")
+    # Просмотр опыта
+    st.subheader(f"Опыт {pet_name}:")
+    st.write([(text, mood, topic) for text, mood, topic in experience])
 
     # Таблица лидеров
-    st.subheader("Соревнование: Чей питомец умнее?")
-    leaderboard = sorted(st.session_state['users'].items(), key=lambda x: x[1]["points"], reverse=True)
-    for name, data in leaderboard:
-        st.write(f"{name} (Интересы: {data['interests']}, Характер: {data['personality']}): {data['points']} очков")
-
-    # Показ текущего диалога
-    st.subheader("Последние 20 сообщений с питомцем:")
-    for user_msg, pet_msg in dialogue:
-        st.write(f"Ты: {user_msg} | Питомец: {pet_msg}")
-
-    # Показ опыта
-    st.subheader(f"Весь опыт твоего питомца:")
-    st.write([(text, mood, topic) for text, mood, topic in experience])
+    st.subheader("Соревнование:")
+    leaderboard = sorted([(name, load_user_data(name)["points"]) for name in st.session_state['users']], key=lambda x: x[1], reverse=True)
+    for name, pts in leaderboard:
+        data = load_user_data(name)
+        st.write(f"{name} (Питомец: {data['pet_name']}, Интересы: {data['interests']}, Характер: {data['personality']}): {pts} очков")
